@@ -135,3 +135,24 @@ def to_heat_map(src):
     dst = (np.clip(src, 0, 1) * 255).astype(np.uint8)
     dst = cv2.applyColorMap(dst, cv2.COLORMAP_JET)
     return dst
+
+
+def drawPoly(src, points_list):
+    """
+
+    Args:
+        src: input image
+        points_list: several points as a group, and this is a list of groups
+
+    Returns: an image
+
+    """
+    image = src.copy()
+    reshaped_points_list = list()
+    for points in points_list:
+        points = np.asarray(points, dtype=np.int)
+        points = np.reshape(points, (-1, 2))
+        reshaped_points_list.append(points)
+
+    cv2.polylines(image, reshaped_points_list, True, (0, 255, 255))
+    return image

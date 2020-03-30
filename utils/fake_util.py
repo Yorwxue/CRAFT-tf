@@ -1,26 +1,17 @@
-# -*- coding: utf-8 -*-
-# @Author: Ruban
-# @License: Apache Licence
-# @File: fake_util.py
-
 import cv2
 import math
 import numpy as np
 
 
-def watershed(src):
+def watershed(src, threshold=0.7):
     """
     Performs a marker-based image segmentation using the watershed algorithm.
+    https://docs.opencv.org/3.3.1/d3/db4/tutorial_py_watershed.html
     :param src: 8-bit 1-channel image.
-    :return: 32-bit single-channel image (map) of markers.
+    :return: 32-bit single-channel image of markers.
     """
-    # cv2.imwrite('{}.png'.format(np.random.randint(1000)), src)
-    gray = src.copy()
-    img = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-    # h, w = gray.shape[:2]
-    # block_size = (min(h, w) // 4 + 1) * 2 + 1
-    # thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, block_size, 0)
-    _ret, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    img = cv2.cvtColor(src, cv2.COLOR_GRAY2BGR)
+    ret, thresh = cv2.threshold(src, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
     # noise removal
     kernel = np.ones((3, 3), np.uint8)
@@ -31,26 +22,22 @@ def watershed(src):
 
     # Finding sure foreground area
     dist_transform = cv2.distanceTransform(opening, cv2.DIST_L2, 5)
-    # dist_transform = opening & gray
-    # cv2.imshow('dist_transform', dist_transform)
-    # _ret, sure_bg = cv2.threshold(dist_transform, 0.2 * dist_transform.max(), 255, cv2.THRESH_BINARY_INV)
-    _ret, sure_fg = cv2.threshold(dist_transform, 0.2 * dist_transform.max(), 255, cv2.THRESH_BINARY)
+    ret, sure_fg = cv2.threshold(dist_transform, threshold * dist_transform.max(), 255, 0)
 
     # Finding unknown region
-    # sure_bg = np.uint8(sure_bg)
     sure_fg = np.uint8(sure_fg)
-    # cv2.imshow('sure_fg', sure_fg)
     unknown = cv2.subtract(sure_bg, sure_fg)
 
     # Marker label
-    lingret, marker_map = cv2.connectedComponents(sure_fg)
+    ret, markers = cv2.connectedComponents(sure_fg)
+
     # Add one to all labels so that sure background is not 0, but 1
-    marker_map = marker_map + 1
+    markers = markers+1
 
     # Now, mark the region of unknown with zero
-    marker_map[unknown == 255] = 0
+    markers[unknown == 255] = 0
 
-    marker_map = cv2.watershed(img, marker_map)
+    marker_map = cv2.watershed(img, markers)
 
     return marker_map
 
