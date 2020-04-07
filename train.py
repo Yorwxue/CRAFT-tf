@@ -15,19 +15,21 @@ from utils.img_util import load_sample, img_unnormalize, load_image, img_normali
 from utils.fake_util import crop_image, watershed, find_box, un_warping, cal_confidence, divide_region, \
     enlarge_char_boxes
 from utils.loss import craft_mse_loss, craft_mae_loss, craft_huber_loss
-from utils.DataLoader import SynLoader, TTLoader
+from utils.DataLoader import SynLoader, TTLoader, CTWLoader
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--learning_rate', type=float, default=0.0001)  # initial learning rate
 parser.add_argument('--batch_size', type=int, default=5)  # batch size for training
-parser.add_argument('--img_size', type=int, default=600)  # batch size for training
+parser.add_argument('--img_size', type=int, default=1280)
 parser.add_argument('--max_epochs', type=int, default=800)  # maximum number of epochs
 parser.add_argument('--gpu_list', type=str, default='0')  # list of gpus to use
-parser.add_argument('--use_fake', type=bool, default=False)  # list of gpus to use
+parser.add_argument('--use_fake', type=bool, default=False)
 # path to training data
-parser.add_argument('--real_data_path', type=str, default=r"./dataset/Total-Text/")
+parser.add_argument('--real_data_path', type=str, default=r"./dataset/ctw/")
 parser.add_argument('--max_image_size', type=int, default=1280)
+parser.add_argument('--iterations', '--iter', type=int, default=1000)
+parser.add_argument('--weight_dir', type=str, default=r"./weights/", help="directory of model weights")
 
 args = parser.parse_args()
 
@@ -38,17 +40,17 @@ class DataGenerator(object):
 
         Args:
             train_data_dict: dataset that include "img_path", "word_boxes", "words", "char_boxes_list" and "confidence_list"
-            sample_ratio: ratio of real data and synthetic data
+            sample_ratio: ratio of real data(include synthetic data) and fake data
             img_size: size of input image
             batch_size:
-            data_count_list: number of data for real and synthetic dataset respectively
-            data_idx_list: index of sample data for real and synthetic dataset respectively
-            data_mark_list: kind of data source, 0 means real data, 1 means synthetic data
+            data_count_list: number of data for real and fake dataset respectively
+            data_idx_list: index of sample data for real and fake dataset respectively
+            data_mark_list: kind of data source, 0 means real data, 1 means fake data
         """
         super().__init__()
         assert len(train_data_dict.keys()) == len(sample_ratio)
         self.train_data_dict = train_data_dict
-        self.train_data_keys = self.train_data_dict.keys()
+        self.train_data_keys = list(self.train_data_dict.keys())
         self.sample_ratio = np.array(sample_ratio) / np.sum(sample_ratio)
         self.data_count_list = [len(train_data_dict[data_kind]) for data_kind in train_data_dict]
         self.data_idx_list = [0] * len(train_data_dict.keys())
@@ -56,7 +58,7 @@ class DataGenerator(object):
         self.img_size = img_size
         self.batch_size = batch_size
 
-    def get_batch(self, size, is_true=True):
+    def get_batch(self, size):
         images = list()
         word_boxes_list = list()
         word_lengths_list = list()
@@ -68,7 +70,7 @@ class DataGenerator(object):
         gaussian_generator = GaussianGenerator()
         word_count_list = list()
         for i in range(size):
-            # sample_mark: sample from real or synthetic dataset: 0 means real, 1 means synthetic
+            # sample_mark: sample from real or fake dataset: 0 means real, 1 means fake
             sample_mark = np.random.choice(self.data_mark_list, p=self.sample_ratio)
 
             img_path, word_boxes, words, char_boxes_list, confidence_list = self.train_data_dict[self.train_data_keys[sample_mark]][self.data_idx_list[sample_mark]]
@@ -105,6 +107,9 @@ class DataGenerator(object):
 
             fg_mask = np.zeros(heat_map_size, dtype=np.uint8)
             cv2.fillPoly(fg_mask, [np.array(word_box) for word_box in word_boxes], 1)
+            # for char_boxes in char_boxes_list:
+            #     cv2.fillPoly(fg_mask, [np.array(char_box) for char_box in char_boxes], 1)
+
             fg_masks.append(fg_mask)
             bg_mask = np.zeros(heat_map_size, dtype=np.float32)
             bg_mask[:mask_shape[0], :mask_shape[1]] = 1
@@ -117,6 +122,16 @@ class DataGenerator(object):
 
             affinity_score = gaussian_generator.gen(heat_map_size, np.array(affinity_box_list) // 2)
             affinity_scores.append(affinity_score)
+
+            # show head map
+            from utils.img_util import to_heat_map
+            img_origin = img_unnormalize(img)
+            img_heat = to_heat_map(region_score)
+            cv2.imwrite("example.jpg", img_origin)
+            cv2.imwrite("example_heat_map.jpg", img_heat)
+            # cv2.imwrite("example_fg_mask.jpg", fg_mask*255)
+            cv2.imwrite("example_bg_mask.jpg", bg_mask*255)
+            print(img_path)
 
         max_word_count = np.max(word_count_list)
         max_word_count = max(1, max_word_count)
@@ -145,11 +160,7 @@ class DataGenerator(object):
             "bg_mask": bg_masks,
         }
 
-        outputs = {
-            "craft": np.zeros([size])
-        }
-
-        return inputs, outputs
+        return inputs
 
     # def fake_char_boxes(self, src, word_box, word_length):
     #     img, src_points, crop_points = crop_image(src, word_box, dst_height=64.)
@@ -296,92 +307,55 @@ class DataGenerator(object):
 
 def train():
     # declare model
-    net = CRAFT()
+    net = CRAFT(input_shape=(args.img_size, args.img_size, 3))
+    loss_function = craft_huber_loss()  # craft_mse_loss(), craft_mae_loss(), craft_huber_loss()
+    optimizer = tf.keras.optimizers.Adam(lr=args.learning_rate)
+    checkpoint = tf.train.Checkpoint(optimizer=optimizer, model=net)
+
+    # Create a checkpoint directory to store the checkpoints.
+    if not os.path.exists(args.weight_dir):
+        os.makedirs(args.weight_dir)
+    checkpoint_dir = os.path.join(args.weight_dir, "ckpt")
+    checkpoint_prefix = os.path.abspath(checkpoint_dir)
 
     # load dataset
-    train_real_data_list, test_data_list = TTLoader(args.real_data_path)
+    print("Data Set Loading ..")
+    # train_real_data_list, test_data_list = TTLoader(args.real_data_path).get_dataset()
+    train_real_data_list, test_data_list = CTWLoader(args.real_data_path).get_dataset()
     np.random.shuffle(train_real_data_list)
     np.random.shuffle(test_data_list)
     if args.use_fake:
-        train_synthetic_data_list = SynLoader(args.train_synthetic_data_path)
-        np.random.shuffle(train_synthetic_data_list)
-        train_generator = DataGenerator({"real": train_real_data_list, "synthetic": train_synthetic_data_list},
+        train_fake_data_list = []  # TODO
+        np.random.shuffle(train_fake_data_list)
+        train_generator = DataGenerator({"real": train_real_data_list, "fake": train_fake_data_list},
                                         [5, 1], args.img_size, args.batch_size)
     else:
         train_generator = DataGenerator({"real": train_real_data_list},
                                         [1], args.img_size, args.batch_size)
 
-    for batch in train_generator.get_batch(args.batch_size):
+    print("Training Start ..")
+    for idx in range(args.iterations):
+        batch = train_generator.get_batch(args.batch_size)
 
-        y, feature = net(batch["image"])
-        region = y[0, :, :, 0]
-        affinity = y[0, :, :, 1]
+        with tf.GradientTape() as tape:
+            y, feature = net(batch["image"])
+            region = y[0, :, :, 0]
+            affinity = y[0, :, :, 1]
+            loss = loss_function([
+                batch["region"],
+                batch["affinity"],
+                region,
+                affinity,
+                batch["confidence"],
+                batch["fg_mask"],
+                batch["bg_mask"]
+            ])
 
-        loss_funs = [craft_mse_loss(), craft_mae_loss(), craft_huber_loss()]
-
-        # # loss_out = Lambda(loss_funs[2], output_shape=(1,), name='craft')(
-        # #     [region_gt, affinity_gt, region, affinity, confidence_gt, input_fg_mask, input_bg_mask])
-        # loss_out = loss_funs[2]([region_gt, affinity_gt, region, affinity, confidence_gt, input_fg_mask, input_bg_mask])
-
-
-
-
-
-    # model = Model(inputs=[input_image, input_box, input_word_length, input_region,
-    #                       input_affinity, input_confidence, input_fg_mask, input_bg_mask],
-    #               outputs=loss_out)
-
-    # callback_model = Model(inputs=[input_image, input_box, input_word_length, input_region,
-    #                                input_affinity, input_confidence],
-    #                        outputs=[region, affinity, region_gt, affinity_gt])
-    #
-    # test_model = Model(inputs=[input_image], outputs=[region, affinity])
-    # test_model.summary()
-    #
-    # weight_path = r'weights/weight.h5'
-    # if os.path.exists(weight_path):
-    #     test_model.load_weights(weight_path)
-    #
-    # # optimizer = SGD(lr=args.learning_rate, decay=1e-6, momentum=0.9, nesterov=True, clipnorm=5)
-    # optimizer = Adam(lr=args.learning_rate)
-    # model.compile(loss={'craft': lambda y_true, y_pred: y_pred}, optimizer=optimizer)
-    #
-
-
-    # if args.use_fake:
-    #     pseudo_sample_list = os.listdir(args.synthetic_data_path)
-    #     np.random.shuffle(pseudo_sample_list)
-    #     train_generator = DataGenerator(test_model, [train_sample_list, pseudo_sample_list], [5, 1], [False, True],
-    #                                       args.img_size, args.batch_size)
-    #     # tensor_board_data_generator = DataGenerator(test_model, [pseudo_sample_list], [1], [True],
-    #     #                                               args.img_size, args.batch_size)
-    # else:
-    #     train_generator = DataGenerator(test_model, [train_sample_list], [1], [False],
-    #                                       args.img_size, args.batch_size)
-    #     # tensor_board_data_generator = DataGenerator(test_model, [train_sample_list], [1], [False],
-    #     #                                               args.img_size, args.batch_size)
-    #
-    # # train_generator.init_sample(True)
-    #
-    # # val_pkl_path = os.listdir(args.val_data_path)
-    # # if os.path.exists(val_pkl_path):
-    # #     val_sample_list = load_data(val_pkl_path)
-    #
-    # steps_per_epoch = 1000
-    #
-    # tensor_board = CraftTensorBoard(log_dir=r'logs',
-    #                                 write_graph=False,
-    #                                 test_model=test_model,
-    #                                 callback_model=callback_model,
-    #                                 data_generator=train_generator,
-    #                                 )
-    #
-    # model.fit_generator(generator=train_generator.next_train(),
-    #                     steps_per_epoch=steps_per_epoch,
-    #                     initial_epoch=0,
-    #                     epochs=args.max_epochs,
-    #                     callbacks=[train_generator, tensor_board]
-    #                     )
+        gradients = tape.gradient(loss, net.trainable_variables)
+        optimizer.apply_gradients(zip(gradients, net.trainable_variables))
+        print("iteration %d, batch loss: " % (idx+1), loss)
+        if (idx+1) % 5 == 0:
+            checkpoint.save(checkpoint_prefix)
 
 
 if __name__ == '__main__':

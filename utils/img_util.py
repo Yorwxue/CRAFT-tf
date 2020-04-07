@@ -125,7 +125,7 @@ def load_sample(img_path, img_size, word_boxes, boxes_list):
     if len(boxes_list) == 0:
         return img, word_boxes, boxes_list, [], [], (target_width, target_height)
 
-    boxes_list = [[[[int(x * ratio), int(y * ratio)] for x, y in box] for box in boxes] for boxes in boxes_list]
+    boxes_list = [[[[int(x * ratio), int(y * ratio)] for x, y in char_box] for char_box in word_box] for word_box in boxes_list]
     region_box_list, affinity_box_list = create_score_box(boxes_list)
 
     return img, word_boxes, boxes_list, region_box_list, affinity_box_list, (target_width, target_height)

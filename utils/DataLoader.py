@@ -5,6 +5,7 @@ import json
 
 from utils.img_util import load_image, drawPoly
 
+
 def SynLoader(dataset_path):
     pass
 
@@ -70,7 +71,7 @@ class TTLoader(object):
         ymin = np.min(word_box["y"])
         xmax = np.max(word_box["x"])
         ymax = np.max(word_box["y"])
-        return [[xmin, xmin, xmax, xmax], [ymin, ymax, ymin, ymax]]
+        return [[xmin, ymin], [xmin, ymax], [xmax, ymin], [xmax, ymax]]
 
 
 class CTWLoader(object):
@@ -83,7 +84,7 @@ class CTWLoader(object):
             raw = fr.readlines()
             for raw_line in raw:
                 dict_line = json.loads(raw_line)
-                img_path = os.path.join(self.root_path, "test", dict_line["file_name"])
+                img_path = os.path.abspath(os.path.join(self.root_path, "test", dict_line["file_name"]))
                 char_boxes_list = [proposal["polygon"] for proposal in dict_line["proposals"]]
                 word_boxes = list()
                 words = list()
@@ -104,7 +105,7 @@ class CTWLoader(object):
             raw = fr.readlines()
             for raw_line in raw:
                 dict_line = json.loads(raw_line)
-                img_path = os.path.join(self.root_path, "train", dict_line["file_name"])
+                img_path = os.path.abspath(os.path.join(self.root_path, "train", dict_line["file_name"]))
                 word_boxes = list()
                 words = list()
                 char_boxes_list = list()
@@ -157,7 +158,10 @@ class CTWLoader(object):
         xmax = np.max(points[:, 0])
         ymin = np.min(points[:, 1])
         ymax = np.max(points[:, 1])
-        return [[xmin, xmin, xmax, xmax], [ymin, ymax, ymin, ymax]], word, char_box_list
+        return [[xmin, ymin], [xmin, ymax], [xmax, ymin], [xmax, ymax]], word, char_box_list
+
+    def get_dataset(self):
+        return self.train_set, self.test_set
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ import argparse
 import os
 import cv2
 import numpy as np
+import datetime
 
 from craft import CRAFT
 import imgproc
@@ -19,6 +20,8 @@ parser.add_argument('--canvas_size', default=224, type=int, help='image size for
 parser.add_argument('--mag_ratio', default=1.5, type=float, help='image magnification ratio')
 parser.add_argument('--refine', default=False, action='store_true', help='enable link refiner')
 parser.add_argument('--refiner_model', default="PATH/TO/YOUR/REFINER/MODEL", type=str, help='pretrained refiner model')
+parser.add_argument('--img_size', type=int, default=1280)
+parser.add_argument('--weight_dir', type=str, default=r"./weights/", help="directory of model weights")
 
 args = parser.parse_args()
 
@@ -71,20 +74,19 @@ def test_net(net, image, text_threshold, link_threshold, low_text, poly, refine_
 
 
 if __name__ == "__main__":
-    net = CRAFT()
+    net = CRAFT(input_shape=(args.img_size, args.img_size, 3))
+    checkpoint = tf.train.Checkpoint(model=net)
+    checkpoint_dir = tf.train.latest_checkpoint(args.weight_dir)
+    # checkpoint_dir = os.path.join(args.weight_dir, "ckpt-5")
+    checkpoint.restore(checkpoint_dir)
+    print("Restored from %s" % checkpoint_dir)
+    # prefix_filename = datetime.datetime.now().strftime('%m%d_%H:%M:%S')
+    prefix_filename = checkpoint_dir.split("/")[-1]
 
-    tf.keras.models.Model()
-
-    log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
-    pass
-
-    # only for testing
-    # image = np.zeros((224, 224, 3))
-    # images = np.expand_dims(image, axis=0)
-    # with tf.GradientTape() as tape:
-    #     logits = net(images)
-    # pass
+    # if not os.path.exists("./logs/fit/"):
+    #     os.makedirs("logs/fit/")
+    # log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
     image_list, _, _ = file_utils.get_files(args.test_folder)
     result_folder = './result/'
@@ -107,9 +109,9 @@ if __name__ == "__main__":
 
         # save score text
         filename, file_ext = os.path.splitext(os.path.basename(image_path))
-        mask_file = result_folder + "/res_" + filename + '_mask.jpg'
+        mask_file = result_folder + "/%s_res_" % prefix_filename + filename + '_mask.jpg'
         cv2.imwrite(mask_file, score_text)
 
-        file_utils.saveResult(image_path, image[:, :, ::-1], polys, dirname=result_folder)
+        file_utils.saveResult(image_path, image[:, :, ::-1], polys, dirname=result_folder, prefix=prefix_filename)
 
     # print("elapsed time : {}s".format(time.time() - t))

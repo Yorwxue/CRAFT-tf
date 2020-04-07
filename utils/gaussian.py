@@ -1,3 +1,4 @@
+# reference: https://github.com/princeton-vl/CornerNet/blob/master/sample/utils.py
 import cv2
 import numpy as np
 

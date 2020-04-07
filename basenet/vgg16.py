@@ -6,22 +6,25 @@ def init_weights(modules):
 
 
 class vgg16(tf.keras.Model):
-    def __init__(self, pretrained=True, freeze=True):
+    def __init__(self, pretrained=True, freeze=True, input_shape=None):
         super(vgg16, self).__init__()
-        self.basenet = tf.keras.applications.VGG16()
+        if input_shape:
+            self.basenet = tf.keras.applications.VGG16(include_top=False, input_shape=input_shape)
+        else:
+            self.basenet = tf.keras.applications.VGG16()
         pass
 
         self.slice1 = tf.keras.models.Sequential([])
         self.slice2 = tf.keras.models.Sequential([])
         self.slice3 = tf.keras.models.Sequential([])
         self.slice4 = tf.keras.models.Sequential([])
-        for i in range(7):  # h/4, w/4
+        for i in range(6):  # h/2, w/2
             self.slice1.add(self.basenet.layers[i])
-        for i in range(7, 11):  # h/8, w/8
+        for i in range(6, 10):  # h/4, w/4
             self.slice2.add(self.basenet.layers[i])
-        for i in range(11, 15):  # h/16, w/16
+        for i in range(10, 14):  # h/8, w/8
             self.slice3.add(self.basenet.layers[i])
-        for i in range(15, 19):  # h/32, w/32
+        for i in range(14, 18):  # h/16, w/16
             self.slice4.add(self.basenet.layers[i])
 
         self.slice5 = tf.keras.models.Sequential([

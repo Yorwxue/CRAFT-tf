@@ -19,12 +19,12 @@ class double_conv(tf.keras.Model):
 
 
 class CRAFT(tf.keras.Model):
-    def __init__(self, pretrained=False, freeze=False):
+    def __init__(self, pretrained=True, freeze=False, input_shape=None):
         super(CRAFT, self).__init__()
         num_class = 2
 
         # basenet
-        self.basenet = vgg16(pretrained, freeze)
+        self.basenet = vgg16(pretrained, freeze, input_shape=input_shape)
 
         # U net
         self.UpConv_1 = double_conv(512, 256)
@@ -45,6 +45,7 @@ class CRAFT(tf.keras.Model):
             tf.keras.layers.ReLU(),
             tf.keras.layers.Conv2D(num_class, (1, 1))
         ])
+        pass
 
     def call(self, x):
         h = self.basenet(x)

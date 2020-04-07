@@ -30,7 +30,8 @@ def list_files(in_path):
     # gt_files.sort()
     return img_files, mask_files, gt_files
 
-def saveResult(img_file, img, boxes, dirname='./result/', verticals=None, texts=None):
+
+def saveResult(img_file, img, boxes, dirname='./result/', verticals=None, texts=None, prefix=None):
         """ save text detection result one by one
         Args:
             img_file (str): image file name
@@ -46,8 +47,12 @@ def saveResult(img_file, img, boxes, dirname='./result/', verticals=None, texts=
         filename, file_ext = os.path.splitext(os.path.basename(img_file))
 
         # result directory
-        res_file = dirname + "res_" + filename + '.txt'
-        res_img_file = dirname + "res_" + filename + '.jpg'
+        if prefix:
+            res_file = dirname + "%s_res_" % prefix + filename + '.txt'
+            res_img_file = dirname + "%s_res_" % prefix + filename + '.jpg'
+        else:
+            res_file = dirname + "res_" + filename + '.txt'
+            res_img_file = dirname + "res_" + filename + '.jpg'
 
         if not os.path.isdir(dirname):
             os.mkdir(dirname)
