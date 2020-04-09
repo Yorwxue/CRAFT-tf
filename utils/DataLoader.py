@@ -3,7 +3,7 @@ import re
 import numpy as np
 import json
 
-from utils.img_util import load_image, drawPoly
+# from utils.img_util import load_image, drawPoly
 
 
 def SynLoader(dataset_path):
@@ -140,7 +140,7 @@ class CTWLoader(object):
             | H |  | E |  | L |  | L |  | O |
              ---    ---    ---    ---    ---
             totally 5 character boxes
-        Returns: (1) a list constitute with list of x coordinates of points and list of y coordinates of points
+        Returns: (1) a list of coordinates of box order by: top-left, top-right, bottom-right, bottom-left
                  (2) word
                  (3) list of character boxes
 
@@ -158,7 +158,7 @@ class CTWLoader(object):
         xmax = np.max(points[:, 0])
         ymin = np.min(points[:, 1])
         ymax = np.max(points[:, 1])
-        return [[xmin, ymin], [xmin, ymax], [xmax, ymin], [xmax, ymax]], word, char_box_list
+        return [[xmin, ymin], [xmax, ymin], [xmax, ymax], [xmin, ymax]], word, char_box_list
 
     def get_dataset(self):
         return self.train_set, self.test_set

@@ -54,28 +54,58 @@ def img_unnormalize(src):
 
     img *= NORMALIZE_VARIANCE
     img += NORMALIZE_MEAN
+    # img *= 255.0
+    # img = np.clip(img, 0, 255).astype(np.uint8)
 
     return img.astype(np.uint8)
 
 
-def img_resize(src, ratio, max_size, interpolation):
-    """
-    Resize image with a ratio.
-    :param src: Image to resize.
-    :param ratio: Scaling ratio.
-    :param max_size: Maximum size of Image.
-    :param interpolation: Interpolation method. See OpenCV document.
-    :return: dst: Resized image.
-             target_ratio: Actual scaling ratio.
-    """
-    img = src.copy()
+# def img_resize(src, ratio, max_size, interpolation):
+#     """
+#     Resize image with a ratio.
+#     :param src: Image to resize.
+#     :param ratio: Scaling ratio.
+#     :param max_size: Maximum size of Image.
+#     :param interpolation: Interpolation method. See OpenCV document.
+#     :return: dst: Resized image.
+#              target_ratio: Actual scaling ratio.
+#     """
+#     img = src.copy()
+#     height, width, channel = img.shape
+#
+#     target_ratio = min(max_size / max(height, width), ratio)
+#     target_h, target_w = int(height * target_ratio), int(width * target_ratio)
+#     dst = cv2.resize(img, (target_w, target_h), interpolation=interpolation)
+#
+#     return dst, target_ratio
+def resize_aspect_ratio(img, square_size, interpolation, mag_ratio=1):
     height, width, channel = img.shape
 
-    target_ratio = min(max_size / max(height, width), ratio)
-    target_h, target_w = int(height * target_ratio), int(width * target_ratio)
-    dst = cv2.resize(img, (target_w, target_h), interpolation=interpolation)
+    # magnify image size
+    target_size = mag_ratio * max(height, width)
 
-    return dst, target_ratio
+    # set original image size
+    if target_size > square_size:
+        target_size = square_size
+
+    ratio = target_size / max(height, width)
+
+    target_h, target_w = int(height * ratio), int(width * ratio)
+    proc = cv2.resize(img, (target_w, target_h), interpolation=interpolation)
+
+    # make canvas and paste image
+    target_h32, target_w32 = target_h, target_w
+    if target_h % 32 != 0:
+        target_h32 = target_h + (32 - target_h % 32)
+    if target_w % 32 != 0:
+        target_w32 = target_w + (32 - target_w % 32)
+    resized = np.zeros((target_h32, target_w32, channel), dtype=np.float32)
+    resized[0:target_h, 0:target_w, :] = proc
+    target_h, target_w = target_h32, target_w32
+
+    size_heatmap = (int(target_w / 2), int(target_h / 2))
+
+    return resized, ratio, size_heatmap
 
 
 def score_to_heat_map(score):

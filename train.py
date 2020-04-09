@@ -10,10 +10,9 @@ from craft import CRAFT
 from test import test_net
 
 from utils.gaussian import GaussianGenerator
-from utils.box_util import reorder_points
-from utils.img_util import load_sample, img_unnormalize, load_image, img_normalize
-from utils.fake_util import crop_image, watershed, find_box, un_warping, cal_confidence, divide_region, \
-    enlarge_char_boxes
+# from utils.box_util import reorder_points
+from utils.img_util import load_sample  # , img_unnormalize, load_image, img_normalize
+# from utils.fake_util import crop_image, watershed, find_box, un_warping, cal_confidence, divide_region, enlarge_char_boxes
 from utils.loss import craft_mse_loss, craft_mae_loss, craft_huber_loss
 from utils.DataLoader import SynLoader, TTLoader, CTWLoader
 
@@ -21,7 +20,7 @@ from utils.DataLoader import SynLoader, TTLoader, CTWLoader
 parser = argparse.ArgumentParser()
 parser.add_argument('--learning_rate', type=float, default=0.0001)  # initial learning rate
 parser.add_argument('--batch_size', type=int, default=5)  # batch size for training
-parser.add_argument('--img_size', type=int, default=1280)
+parser.add_argument('--canvas_size', type=int, default=1280)
 parser.add_argument('--max_epochs', type=int, default=800)  # maximum number of epochs
 parser.add_argument('--gpu_list', type=str, default='0')  # list of gpus to use
 parser.add_argument('--use_fake', type=bool, default=False)
@@ -79,7 +78,7 @@ class DataGenerator(object):
                 self.data_idx_list[sample_mark] = 0
                 np.random.shuffle(self.train_data_dict[self.train_data_keys[sample_mark]])
 
-            img, word_boxes, char_boxes_list, region_box_list, affinity_box_list, img_shape = load_sample(img_path, self.img_size, word_boxes, char_boxes_list)
+            img, word_boxes, char_boxes_list, region_box_list, affinity_box_list, img_shape = load_sample(img_path, self.canvas_size, word_boxes, char_boxes_list)
             images.append(img)
 
             word_count = min(len(word_boxes), len(words))
@@ -123,15 +122,15 @@ class DataGenerator(object):
             affinity_score = gaussian_generator.gen(heat_map_size, np.array(affinity_box_list) // 2)
             affinity_scores.append(affinity_score)
 
-            # show head map
-            from utils.img_util import to_heat_map
-            img_origin = img_unnormalize(img)
-            img_heat = to_heat_map(region_score)
-            cv2.imwrite("example.jpg", img_origin)
-            cv2.imwrite("example_heat_map.jpg", img_heat)
-            # cv2.imwrite("example_fg_mask.jpg", fg_mask*255)
-            cv2.imwrite("example_bg_mask.jpg", bg_mask*255)
-            print(img_path)
+            # # # show head map
+            # from utils.img_util import to_heat_map
+            # img_origin = img_unnormalize(img)
+            # img_heat = to_heat_map(region_score)
+            # cv2.imwrite("example.jpg", img_origin)
+            # cv2.imwrite("example_heat_map.jpg", img_heat)
+            # # cv2.imwrite("example_fg_mask.jpg", fg_mask*255)
+            # cv2.imwrite("example_bg_mask.jpg", bg_mask*255)
+            # print(img_path)
 
         max_word_count = np.max(word_count_list)
         max_word_count = max(1, max_word_count)
@@ -307,8 +306,8 @@ class DataGenerator(object):
 
 def train():
     # declare model
-    net = CRAFT(input_shape=(args.img_size, args.img_size, 3))
-    loss_function = craft_huber_loss()  # craft_mse_loss(), craft_mae_loss(), craft_huber_loss()
+    net = CRAFT(input_shape=(args.canvas_size, args.canvas_size, 3))
+    loss_function = craft_mse_loss()  # craft_mse_loss(), craft_mae_loss(), craft_huber_loss()
     optimizer = tf.keras.optimizers.Adam(lr=args.learning_rate)
     checkpoint = tf.train.Checkpoint(optimizer=optimizer, model=net)
 
@@ -328,10 +327,10 @@ def train():
         train_fake_data_list = []  # TODO
         np.random.shuffle(train_fake_data_list)
         train_generator = DataGenerator({"real": train_real_data_list, "fake": train_fake_data_list},
-                                        [5, 1], args.img_size, args.batch_size)
+                                        [5, 1], args.canvas_size, args.batch_size)
     else:
         train_generator = DataGenerator({"real": train_real_data_list},
-                                        [1], args.img_size, args.batch_size)
+                                        [1], args.canvas_size, args.batch_size)
 
     print("Training Start ..")
     for idx in range(args.iterations):
