@@ -187,8 +187,8 @@ if __name__ == "__main__":
     # points_list = [reorder_points(np.asarray([[coord[0][0], coord[1][0]], [coord[0][1], coord[1][1]], [coord[0][2], coord[1][2]], [coord[0][3], coord[1][3]]])) for coord in word_boxes]
     # char boxes
     points_list = list()
-    for char_box in char_boxes_list:
-        points = np.asarray(char_box, dtype=np.int)
+    for char_boxes in char_boxes_list:
+        points = np.asarray(char_boxes, dtype=np.int)
         points = np.reshape(points, (-1, 2))
         points_list.append(points)
 

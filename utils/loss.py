@@ -5,15 +5,22 @@ def ohem(loss, fg_mask, bg_mask, negative_ratio=3.):
     fg_num = tf.reduce_sum(fg_mask)
     bg_num = tf.reduce_sum(bg_mask)
 
-    neg_num = tf.maximum(tf.cast(fg_num * negative_ratio, dtype=tf.int32), tf.constant(10000, dtype=tf.int32))
+    # neg_num = tf.maximum(tf.cast(fg_num * negative_ratio, dtype=tf.int32), tf.constant(10000, dtype=tf.int32))
+    neg_num = tf.cast(fg_num * negative_ratio, dtype=tf.int32)
     neg_num = tf.minimum(tf.cast(bg_num, dtype=tf.int32), neg_num)
 
     neg_loss = loss * bg_mask
     vals, _ = tf.nn.top_k(tf.reshape(neg_loss, shape=[-1]), k=neg_num)
+
+    # # soft-mask
+    # bg_bool_mask = tf.greater_equal(neg_loss, vals[-1])
+    # soft_bg_mask = neg_loss * tf.cast(bg_bool_mask, dtype=tf.float32)
+    # return soft_bg_mask
+
+    # hard-mask
     bg_bool_mask = tf.cast(bg_mask, dtype=tf.bool)
     hard_bg_bool_mask = tf.logical_and(bg_bool_mask, tf.greater_equal(neg_loss, vals[-1]))
     hard_bg_mask = tf.cast(hard_bg_bool_mask, dtype=tf.float32)
-
     return hard_bg_mask
 
 
@@ -24,11 +31,13 @@ def batch_ohem(loss, fg_mask, bg_mask, negative_ratio=3.):
 class craft_mse_loss(tf.keras.Model):
     def __init__(self):
         super(craft_mse_loss, self).__init__()
+        self.confidence_threshold = 0.5
 
     def call(self, args):
         region_true, affinity_true, region_pred, affinity_pred, confidence, fg_mask, bg_mask = args
 
-        confidence = confidence
+        confidence_mask = tf.greater_equal(confidence, tf.constant(self.confidence_threshold, dtype=tf.float32))
+        confidence = tf.where(confidence_mask, confidence, tf.zeros_like(confidence))
 
         l_region = tf.pow(region_true - region_pred, 2)
         l_region = l_region * confidence
@@ -47,11 +56,13 @@ class craft_mse_loss(tf.keras.Model):
 class craft_mae_loss(tf.keras.Model):
     def __init__(self):
         super(craft_mae_loss, self).__init__()
+        self.confidence_threshold = 0.5
 
     def call(self, args):
         region_true, affinity_true, region_pred, affinity_pred, confidence, fg_mask, bg_mask = args
 
-        confidence = confidence
+        confidence_mask = tf.greater_equal(confidence, tf.constant(self.confidence_threshold, dtype=tf.float32))
+        confidence = tf.where(confidence_mask, confidence, tf.zeros_like(confidence))
 
         l_region = tf.abs(region_true - region_pred)
         l_region = l_region * confidence
@@ -70,6 +81,7 @@ class craft_mae_loss(tf.keras.Model):
 class craft_huber_loss(tf.keras.Model):
     def __init__(self):
         super(craft_huber_loss, self).__init__()
+        self.confidence_threshold = 0.5
 
     def huber_loss(self, y_true, y_pred, threshold=0.5):
         residual = tf.abs(y_true - y_pred)
@@ -79,6 +91,9 @@ class craft_huber_loss(tf.keras.Model):
 
     def call(self, args):
         region_true, affinity_true, region_pred, affinity_pred, confidence, fg_mask, bg_mask = args
+
+        confidence_mask = tf.greater_equal(confidence, tf.constant(self.confidence_threshold, dtype=tf.float32))
+        confidence = tf.where(confidence_mask, confidence, tf.zeros_like(confidence))
 
         l_region = self.huber_loss(region_true, region_pred)
         l_region = l_region * confidence

@@ -3,17 +3,14 @@ import cv2
 import argparse
 import tensorflow as tf
 import os
-import io
-from PIL import Image
 
 from craft import CRAFT
-from test import test_net
 
 from utils.gaussian import GaussianGenerator
-# from utils.box_util import reorder_points
-from utils.img_util import load_sample  # , img_unnormalize, load_image, img_normalize
-# from utils.fake_util import crop_image, watershed, find_box, un_warping, cal_confidence, divide_region, enlarge_char_boxes
-from utils.loss import craft_mse_loss, craft_mae_loss, craft_huber_loss
+from utils.img_util import load_sample, img_unnormalize
+from utils.loss import craft_mse_loss as craft_loss
+# from utils.loss import craft_mae_loss as craft_loss
+# from utils.loss import craft_huber_loss as craft_loss
 from utils.DataLoader import SynLoader, TTLoader, CTWLoader
 
 
@@ -27,7 +24,7 @@ parser.add_argument('--use_fake', type=bool, default=False)
 # path to training data
 parser.add_argument('--real_data_path', type=str, default=r"./dataset/ctw/")
 parser.add_argument('--max_image_size', type=int, default=1280)
-parser.add_argument('--iterations', '--iter', type=int, default=1000)
+parser.add_argument('--iterations', '--iter', type=int, default=100000)
 parser.add_argument('--weight_dir', type=str, default=r"./weights/", help="directory of model weights")
 
 args = parser.parse_args()
@@ -78,7 +75,7 @@ class DataGenerator(object):
                 self.data_idx_list[sample_mark] = 0
                 np.random.shuffle(self.train_data_dict[self.train_data_keys[sample_mark]])
 
-            img, word_boxes, char_boxes_list, region_box_list, affinity_box_list, img_shape = load_sample(img_path, self.canvas_size, word_boxes, char_boxes_list)
+            img, word_boxes, char_boxes_list, region_box_list, affinity_box_list, img_shape = load_sample(img_path, self.img_size, word_boxes, char_boxes_list)
             images.append(img)
 
             word_count = min(len(word_boxes), len(words))
@@ -94,18 +91,19 @@ class DataGenerator(object):
             heat_map_size = (height // 2, width // 2)
 
             mask_shape = (img_shape[1] // 2, img_shape[0] // 2)
-            confidence_score = np.ones(heat_map_size, dtype=np.float32)
-            for word_box, confidence_value in zip(word_boxes, confidence_list):
-                if confidence_value == 1:
-                    continue
-                tmp_confidence_score = np.zeros(heat_map_size, dtype=np.uint8)
-                cv2.fillPoly(tmp_confidence_score, [np.array(word_box)], 1)
-                tmp_confidence_score = np.float32(tmp_confidence_score) * confidence_value
-                confidence_score = np.where(tmp_confidence_score > confidence_score, tmp_confidence_score, confidence_score)
-            confidence_score_list.append(confidence_score)
-
+            confidence_score = np.zeros(heat_map_size, dtype=np.float32)
             fg_mask = np.zeros(heat_map_size, dtype=np.uint8)
-            cv2.fillPoly(fg_mask, [np.array(word_box) for word_box in word_boxes], 1)
+            for word_box, confidence_value in zip(word_boxes, confidence_list):
+                confidence_score_mask = np.zeros(heat_map_size, dtype=np.uint8)
+                cv2.fillPoly(confidence_score_mask, [np.array(word_box)], 1)
+                fg_mask = fg_mask + np.uint8(confidence_score_mask)
+                confidence_score_slice = np.float32(confidence_score_mask) * confidence_value
+                confidence_score = confidence_score_slice + confidence_score
+            confidence_score = np.clip(confidence_score, 0, 1)
+            fg_mask = np.clip(fg_mask, 0, 1)
+
+            # fg_mask = np.zeros(heat_map_size, dtype=np.uint8)
+            # cv2.fillPoly(fg_mask, [np.array(word_box) for word_box in word_boxes], 1)
             # for char_boxes in char_boxes_list:
             #     cv2.fillPoly(fg_mask, [np.array(char_box) for char_box in char_boxes], 1)
 
@@ -116,21 +114,39 @@ class DataGenerator(object):
             bg_mask = np.clip(bg_mask, 0, 1)
             bg_masks.append(bg_mask)
 
+            confidence_score_list.append(np.clip(confidence_score + bg_mask, 0, 1))
+
             region_score = gaussian_generator.gen(heat_map_size, np.array(region_box_list) // 2)
             region_scores.append(region_score)
 
             affinity_score = gaussian_generator.gen(heat_map_size, np.array(affinity_box_list) // 2)
             affinity_scores.append(affinity_score)
 
-            # # # show head map
-            # from utils.img_util import to_heat_map
-            # img_origin = img_unnormalize(img)
-            # img_heat = to_heat_map(region_score)
-            # cv2.imwrite("example.jpg", img_origin)
-            # cv2.imwrite("example_heat_map.jpg", img_heat)
-            # # cv2.imwrite("example_fg_mask.jpg", fg_mask*255)
-            # cv2.imwrite("example_bg_mask.jpg", bg_mask*255)
-            # print(img_path)
+            # show head map
+            """
+            from utils.img_util import to_heat_map
+            from utils.box_util import reorder_points
+            img_origin = cv2.cvtColor(img_unnormalize(img), cv2.COLOR_RGB2BGR)
+            points_list = list()
+            for char_boxes in char_boxes_list:
+                for char_box in char_boxes:
+                    points = np.asarray(reorder_points(char_box), dtype=np.int)
+                    points = np.reshape(points, (-1, 2))
+                    points_list.append(points)
+            cv2.polylines(img_origin, points_list, True, (0, 255, 255))
+            img_region_heat = to_heat_map(region_score)
+            img_affinity_heat = to_heat_map(affinity_score)
+            img_gray_region_score = np.transpose([region_score, region_score, region_score], (1, 2, 0)) * 255
+            img_confidence = np.transpose([confidence_score, confidence_score, confidence_score], (1, 2, 0)) * 255
+            cv2.imwrite("example_confidence.jpg", img_confidence)
+            cv2.imwrite("example.jpg", img_origin)
+            cv2.imwrite("example_gray_region_heat_map.jpg", img_gray_region_score)
+            cv2.imwrite("example_region_heat_map.jpg", img_region_heat)
+            cv2.imwrite("example_affinity_heat_map.jpg", img_affinity_heat)
+            cv2.imwrite("example_fg_mask.jpg", fg_mask*255)
+            cv2.imwrite("example_bg_mask.jpg", bg_mask*255)
+            print(img_path)
+            # """
 
         max_word_count = np.max(word_count_list)
         max_word_count = max(1, max_word_count)
@@ -307,9 +323,11 @@ class DataGenerator(object):
 def train():
     # declare model
     net = CRAFT(input_shape=(args.canvas_size, args.canvas_size, 3))
-    loss_function = craft_mse_loss()  # craft_mse_loss(), craft_mae_loss(), craft_huber_loss()
+    loss_function = craft_loss()
     optimizer = tf.keras.optimizers.Adam(lr=args.learning_rate)
     checkpoint = tf.train.Checkpoint(optimizer=optimizer, model=net)
+    manager = tf.train.CheckpointManager(
+        checkpoint, directory=args.weight_dir, max_to_keep=10)
 
     # Create a checkpoint directory to store the checkpoints.
     if not os.path.exists(args.weight_dir):
@@ -353,8 +371,9 @@ def train():
         gradients = tape.gradient(loss, net.trainable_variables)
         optimizer.apply_gradients(zip(gradients, net.trainable_variables))
         print("iteration %d, batch loss: " % (idx+1), loss)
-        if (idx+1) % 5 == 0:
-            checkpoint.save(checkpoint_prefix)
+        # if (idx+1) % 100 == 0:
+        #     checkpoint.save(checkpoint_prefix)
+        manager.save()
 
 
 if __name__ == '__main__':

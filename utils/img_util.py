@@ -54,8 +54,6 @@ def img_unnormalize(src):
 
     img *= NORMALIZE_VARIANCE
     img += NORMALIZE_MEAN
-    # img *= 255.0
-    # img = np.clip(img, 0, 255).astype(np.uint8)
 
     return img.astype(np.uint8)
 
@@ -78,7 +76,9 @@ def img_unnormalize(src):
 #     dst = cv2.resize(img, (target_w, target_h), interpolation=interpolation)
 #
 #     return dst, target_ratio
-def resize_aspect_ratio(img, square_size, interpolation, mag_ratio=1):
+
+
+def resize_aspect_ratio(img, square_size, interpolation=cv2.INTER_LINEAR, mag_ratio=1):
     height, width, channel = img.shape
 
     # magnify image size
@@ -140,15 +140,19 @@ def load_sample(img_path, img_size, word_boxes, boxes_list):
     img = load_image(img_path)
 
     height, width = img.shape[:2]
-    ratio = img_size / max(height, width)
+    # ratio = img_size / max(height, width)
+    # target_height = int(height * ratio)
+    # target_width = int(width * ratio)
+    # img = cv2.resize(img, (target_width, target_height)).
+    #
+    # normalized_img = img_normalize(img)
+    # # padding
+    # img = np.zeros((img_size, img_size, 3), dtype=np.float32)
+    # img[:target_height, :target_width] = normalized_img
+    img, ratio, size_heatmap = resize_aspect_ratio(img, img_size)
     target_height = int(height * ratio)
     target_width = int(width * ratio)
-    img = cv2.resize(img, (target_width, target_height))
-
-    normalized_img = img_normalize(img)
-    # padding
-    img = np.zeros((img_size, img_size, 3), dtype=np.float32)
-    img[:target_height, :target_width] = normalized_img
+    img = img_normalize(img)
 
     word_boxes = [[[int(x * ratio), int(y * ratio)] for x, y in box] for box in word_boxes]
 
