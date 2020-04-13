@@ -356,8 +356,8 @@ def train():
 
         with tf.GradientTape() as tape:
             y, feature = net(batch["image"])
-            region = y[0, :, :, 0]
-            affinity = y[0, :, :, 1]
+            region = y[:, :, :, 0]
+            affinity = y[:, :, :, 1]
             loss = loss_function([
                 batch["region"],
                 batch["affinity"],
