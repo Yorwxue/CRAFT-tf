@@ -8,6 +8,7 @@ from craft import CRAFT
 
 from utils.gaussian import GaussianGenerator
 from utils.img_util import load_sample, img_unnormalize
+from utils.loss import save_log
 from utils.loss import craft_mse_loss as craft_loss
 # from utils.loss import craft_mae_loss as craft_loss
 # from utils.loss import craft_huber_loss as craft_loss
@@ -358,7 +359,13 @@ def train():
             y, feature = net(batch["image"])
             region = y[:, :, :, 0]
             affinity = y[:, :, :, 1]
-            loss = loss_function([
+            """
+            kind = "region"
+            temp = batch[kind][0]
+            img_temp = np.transpose([temp, temp, temp], (1, 2, 0)) * 255
+            cv2.imwrite("./logs/temp_%s.jpg" % kind, img_temp)
+            """
+            loss, l_region, l_affinity, hard_bg_mask = loss_function([
                 batch["region"],
                 batch["affinity"],
                 region,
@@ -367,7 +374,9 @@ def train():
                 batch["fg_mask"],
                 batch["bg_mask"]
             ])
-
+            if idx % 10 == 0:
+                save_log(region, l_region, batch["region"], batch["fg_mask"], hard_bg_mask, "region", prefix="iter%d" % (idx+1))
+                save_log(affinity, l_affinity, batch["affinity"], batch["fg_mask"], hard_bg_mask, "affinity", prefix="iter%d" % (idx+1))
         gradients = tape.gradient(loss, net.trainable_variables)
         optimizer.apply_gradients(zip(gradients, net.trainable_variables))
         print("iteration %d, batch loss: " % (idx+1), loss)

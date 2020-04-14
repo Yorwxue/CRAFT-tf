@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 from skimage import io
 from utils.box_util import cal_affinity_boxes
+from utils.train_utils import random_crop
 
 # RGB
 NORMALIZE_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32) * 255.0
@@ -136,8 +137,10 @@ def create_score_box(boxes_list):
     return region_box_list, affinity_box_list
 
 
-def load_sample(img_path, img_size, word_boxes, boxes_list):
+def load_sample(img_path, img_size, word_boxes, char_boxes_list):
     img = load_image(img_path)
+
+    img, word_boxes, char_boxes_list = random_crop(img, word_boxes, char_boxes_list)
 
     height, width = img.shape[:2]
     # ratio = img_size / max(height, width)
@@ -156,13 +159,13 @@ def load_sample(img_path, img_size, word_boxes, boxes_list):
 
     word_boxes = [[[int(x * ratio), int(y * ratio)] for x, y in box] for box in word_boxes]
 
-    if len(boxes_list) == 0:
-        return img, word_boxes, boxes_list, [], [], (target_width, target_height)
+    if len(char_boxes_list) == 0:
+        return img, word_boxes, char_boxes_list, [], [], (target_width, target_height)
 
-    boxes_list = [[[[int(x * ratio), int(y * ratio)] for x, y in char_box] for char_box in word_box] for word_box in boxes_list]
-    region_box_list, affinity_box_list = create_score_box(boxes_list)
+    char_boxes_list = [[[[int(x * ratio), int(y * ratio)] for x, y in char_box] for char_box in word_box] for word_box in char_boxes_list]
+    region_box_list, affinity_box_list = create_score_box(char_boxes_list)
 
-    return img, word_boxes, boxes_list, region_box_list, affinity_box_list, (target_width, target_height)
+    return img, word_boxes, char_boxes_list, region_box_list, affinity_box_list, (target_width, target_height)
 
 
 def to_heat_map(src):
