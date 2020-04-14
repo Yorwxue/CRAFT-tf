@@ -86,8 +86,8 @@ def resize_aspect_ratio(img, square_size, interpolation=cv2.INTER_LINEAR, mag_ra
     target_size = mag_ratio * max(height, width)
 
     # set original image size
-    if target_size > square_size:
-        target_size = square_size
+    # if target_size > square_size:
+    target_size = square_size
 
     ratio = target_size / max(height, width)
 
@@ -95,14 +95,19 @@ def resize_aspect_ratio(img, square_size, interpolation=cv2.INTER_LINEAR, mag_ra
     proc = cv2.resize(img, (target_w, target_h), interpolation=interpolation)
 
     # make canvas and paste image
-    target_h32, target_w32 = target_h, target_w
-    if target_h % 32 != 0:
-        target_h32 = target_h + (32 - target_h % 32)
-    if target_w % 32 != 0:
-        target_w32 = target_w + (32 - target_w % 32)
-    resized = np.zeros((target_h32, target_w32, channel), dtype=np.float32)
+    # target_h32, target_w32 = target_h, target_w
+    # if target_h % 32 != 0:
+    #     target_h32 = target_h + (32 - target_h % 32)
+    # if target_w % 32 != 0:
+    #     target_w32 = target_w + (32 - target_w % 32)
+    # resized = np.zeros((target_h32, target_w32, channel), dtype=np.float32)
+    # resized[0:target_h, 0:target_w, :] = proc
+    # target_h, target_w = target_h32, target_w32
+
+    # padding
+    resized = np.zeros((square_size, square_size, channel), dtype=np.float32)
     resized[0:target_h, 0:target_w, :] = proc
-    target_h, target_w = target_h32, target_w32
+    target_h, target_w = square_size, square_size
 
     size_heatmap = (int(target_w / 2), int(target_h / 2))
 

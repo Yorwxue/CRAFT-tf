@@ -17,8 +17,8 @@ from utils.DataLoader import SynLoader, TTLoader, CTWLoader
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--learning_rate', type=float, default=0.0001)  # initial learning rate
-parser.add_argument('--batch_size', type=int, default=5)  # batch size for training
-parser.add_argument('--canvas_size', type=int, default=1280)
+parser.add_argument('--batch_size', type=int, default=10)  # batch size for training
+parser.add_argument('--canvas_size', type=int, default=640)
 parser.add_argument('--max_epochs', type=int, default=800)  # maximum number of epochs
 parser.add_argument('--gpu_list', type=str, default='0')  # list of gpus to use
 parser.add_argument('--use_fake', type=bool, default=False)
