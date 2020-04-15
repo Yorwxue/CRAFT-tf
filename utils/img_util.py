@@ -142,16 +142,16 @@ def create_score_box(boxes_list):
     return region_box_list, affinity_box_list
 
 
-def load_sample(img_path, img_size, word_boxes, char_boxes_list):
+def load_sample(img_path, img_size, word_boxes, char_boxes_list, crop_ratio=(0.1, 0.3)):
     img = load_image(img_path)
 
-    img, word_boxes, char_boxes_list = random_crop(img, word_boxes, char_boxes_list)
+    img, word_boxes, char_boxes_list = random_crop(img, word_boxes, char_boxes_list, crop_ratio)
 
     height, width = img.shape[:2]
     # ratio = img_size / max(height, width)
     # target_height = int(height * ratio)
     # target_width = int(width * ratio)
-    # img = cv2.resize(img, (target_width, target_height)).
+    # img = cv2.resize(img, (target_width, target_height))
     #
     # normalized_img = img_normalize(img)
     # # padding

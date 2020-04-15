@@ -15,17 +15,45 @@ def random_crop(img, word_boxes, char_boxes_list, crop_ratio=(0.1, 0.3)):
              (3) character-level boxes of cropped image
 
     """
-    random_ratio = np.random.uniform(crop_ratio[0], crop_ratio[1])
+    if crop_ratio[0] == crop_ratio[1]:
+        random_ratio = crop_ratio[0]
+    else:
+        random_ratio = np.random.uniform(crop_ratio[0], crop_ratio[1])
     random_chose = np.random.randint(0, len(word_boxes))
-    random_center_x = np.random.randint(word_boxes[random_chose][0][0], word_boxes[random_chose][1][0])
-    random_center_y = np.random.randint(word_boxes[random_chose][0][1], word_boxes[random_chose][3][1])
+    if word_boxes[random_chose][0][0] == word_boxes[random_chose][1][0]:
+        random_center_x = word_boxes[random_chose][0][0]
+    else:
+        random_center_x = np.random.randint(word_boxes[random_chose][0][0], word_boxes[random_chose][1][0])
+    if word_boxes[random_chose][0][1] == word_boxes[random_chose][3][1]:
+        random_center_y = word_boxes[random_chose][0][1]
+    else:
+        random_center_y = np.random.randint(word_boxes[random_chose][0][1], word_boxes[random_chose][3][1])
 
     high, width = np.shape(img)[0:2]
     target_high = int(random_ratio * high)
     target_width = int(random_ratio * width)
+
+    random_center_x = random_center_x + np.random.randint(-target_width//4, target_width//4)
+    random_center_y = random_center_y + np.random.randint(-target_high//4, target_high//4)
+
+    # move center to avoid out of boundary
+    if (random_center_x - int(target_width/2)) <= 0:
+        random_center_x = random_center_x + target_width//2
+    elif (random_center_x + int(target_width/2)) >= width:
+        random_center_x = random_center_x - target_width//2
+    if (random_center_y - int(target_high/2)) <= 0:
+        random_center_y = random_center_x + target_high//2
+    elif (random_center_y + int(target_high/2)) >= width:
+        random_center_y = random_center_x - target_high//2
+
+    # compute boundary
+    img_boundary_xmin = np.max([0, random_center_x - int(target_width/2)])
+    img_boundary_xmax = np.min([random_center_x + int(target_width/2), width])
+    img_boundary_ymin = np.max([0, random_center_y - int(target_high/2)])
+    img_boundary_ymax = np.min([random_center_y + int(target_high/2), high])
     target_img = img[
-        np.max([0, random_center_y - int(target_high/2)]):np.min([random_center_y + int(target_high/2), high]),
-        np.max([0, random_center_x - int(target_width/2)]):np.min([random_center_x + int(target_width/2), width]),
+        img_boundary_ymin:img_boundary_ymax,
+        img_boundary_xmin:img_boundary_xmax,
         :
     ]
     target_word_boxes = boxes_checker(word_boxes, (target_high, target_width), (random_center_x, random_center_y))
