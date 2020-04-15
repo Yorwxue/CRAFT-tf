@@ -11,6 +11,7 @@ def ohem(loss, fg_mask, bg_mask, negative_ratio=3.):
     # neg_num = tf.maximum(tf.cast(fg_num * negative_ratio, dtype=tf.int32), tf.constant(10000, dtype=tf.int32))
     neg_num = tf.cast(fg_num * negative_ratio, dtype=tf.int32)
     neg_num = tf.minimum(tf.cast(bg_num, dtype=tf.int32), neg_num)
+    neg_num = tf.minimum(tf.cast(1, dtype=tf.int32), neg_num)  # prevent that there are no fg_mask
 
     neg_loss = loss * bg_mask
     vals, _ = tf.nn.top_k(tf.reshape(neg_loss, shape=[-1]), k=neg_num)

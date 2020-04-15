@@ -166,10 +166,10 @@ class DataGenerator(object):
                 # """
             except Exception as e:
                 print(img_path)
-                print(word_boxes)
-                print(char_boxes_list)
+                print("len(word_boxes) = ", len(word_boxes))
+                print("len(char_boxes_list) = ", len(char_boxes_list))
                 print(e)
-                raise
+                exit()
 
         max_word_count = np.max(word_count_list)
         max_word_count = max(1, max_word_count)
@@ -388,15 +388,20 @@ def train():
             img_temp = np.transpose([temp, temp, temp], (1, 2, 0)) * 255
             cv2.imwrite("./logs/temp_%s.jpg" % kind, img_temp)
             """
-            loss, l_region, l_affinity, hard_bg_mask = loss_function([
-                batch["region"],
-                batch["affinity"],
-                region,
-                affinity,
-                batch["confidence"],
-                batch["fg_mask"],
-                batch["bg_mask"]
-            ])
+            try:
+                loss, l_region, l_affinity, hard_bg_mask = loss_function([
+                    batch["region"],
+                    batch["affinity"],
+                    region,
+                    affinity,
+                    batch["confidence"],
+                    batch["fg_mask"],
+                    batch["bg_mask"]
+                ])
+            except Exception as e:
+                print(e)
+                loss, l_region, l_affinity, hard_bg_mask = loss_function([batch["region"], batch["affinity"], region, affinity, batch["confidence"], batch["fg_mask"], batch["bg_mask"]])
+                exit()
             if idx % 10 == 0:
                 for batch_idx in range(len(batch["image"])):
                     img = batch["image"][batch_idx]
