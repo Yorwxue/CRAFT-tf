@@ -27,6 +27,7 @@ def load_image(img_path):
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
     if img.shape[2] == 4:
         img = img[:, :, :3]
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
     img = np.array(img)
 
     return img
@@ -142,10 +143,20 @@ def create_score_box(boxes_list):
     return region_box_list, affinity_box_list
 
 
-def load_sample(img_path, img_size, word_boxes, char_boxes_list, crop_ratio=(0.1, 0.3)):
-    img = load_image(img_path)
+def load_sample(img_path, img_size, raw_word_boxes, raw_char_boxes_list, crop_ratio=(0.1, 0.3)):
+    raw_img = load_image(img_path)
+    min_crop_ratio = crop_ratio[0]
+    max_crop_ratio = crop_ratio[1]
 
-    img, word_boxes, char_boxes_list = random_crop(img, word_boxes, char_boxes_list, crop_ratio)
+    img, word_boxes, char_boxes_list = random_crop(raw_img, raw_word_boxes, raw_char_boxes_list, (min_crop_ratio, max_crop_ratio))
+
+    # redo sample data while this data is broken
+    while len(char_boxes_list) == 0 or len(word_boxes) == 0:
+        print("img: " + img_path + " can't find boxes")
+        min_crop_ratio = np.min([min_crop_ratio+0.1, 1])
+        max_crop_ratio = np.min([max_crop_ratio+0.1, 1])
+        img, word_boxes, char_boxes_list = random_crop(raw_img, word_boxes, char_boxes_list, (min_crop_ratio, max_crop_ratio))
+
 
     height, width = img.shape[:2]
     # ratio = img_size / max(height, width)

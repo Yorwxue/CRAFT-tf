@@ -42,13 +42,13 @@ def random_crop(img, word_boxes, char_boxes_list, crop_ratio=(0.1, 0.3)):
 
     # move center to avoid out of boundary
     if (random_center_x - target_width//2) < 0:
-        random_center_x = random_center_x + target_width//2
+        random_center_x = random_center_x + (0 - (random_center_x - target_width//2))
     elif (random_center_x + target_width//2) >= width:
-        random_center_x = random_center_x - target_width//2
+        random_center_x = random_center_x - (random_center_x + target_width//2 - width)
     if (random_center_y - target_high//2) < 0:
-        random_center_y = random_center_x + target_high//2
-    elif (random_center_y + target_high//2) >= width:
-        random_center_y = random_center_x - target_high//2
+        random_center_y = random_center_y + (0 - (random_center_y - target_high//2))
+    elif (random_center_y + target_high//2) >= high:
+        random_center_y = random_center_y - ((random_center_y + target_high//2) - high)
 
     # compute boundary
     img_boundary_xmin = np.max([0, random_center_x - int(target_width/2)])

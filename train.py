@@ -55,11 +55,13 @@ class DataGenerator(object):
         self.data_mark_list = list(range(len(self.train_data_keys)))
         self.img_size = img_size
         self.batch_size = batch_size
+        self.iter_idx = 0
 
-    def get_batch(self, size, iter_idx):
-        crop_ratio = 1 + iter_idx // (args.iterations//5)  # 1
+    def get_batch(self, size):
+        crop_ratio = 1 + self.iter_idx // (args.iterations//5)  # from 1 to 5
+        self.iter_idx += 1
         ini_min_ratio = 0.05
-        ini_max_ratio = 0.2
+        ini_max_ratio = 0.2  # 0.2 * 5 == 1
         image_paths = list()
         images = list()
         word_boxes_list = list()
@@ -83,14 +85,6 @@ class DataGenerator(object):
 
             try:
                 img, word_boxes, char_boxes_list, region_box_list, affinity_box_list, img_shape = load_sample(img_path, self.img_size, word_boxes, char_boxes_list, crop_ratio=(ini_min_ratio*crop_ratio, ini_max_ratio*crop_ratio))
-
-                # skip break example
-                while len(char_boxes_list) == 0 or len(word_boxes) == 0:
-                    print(img_path)
-                    print(word_boxes)
-                    print(char_boxes_list)
-                    min_ratio = np.min([ini_min_ratio + 0.1, 1])
-                    img, word_boxes, char_boxes_list, region_box_list, affinity_box_list, img_shape = load_sample(img_path, self.img_size, word_boxes, char_boxes_list, crop_ratio=(min_ratio*crop_ratio, 1))
 
                 images.append(img)
                 image_paths.append(img_path)
@@ -168,6 +162,7 @@ class DataGenerator(object):
                 print(img_path)
                 print("len(word_boxes) = ", len(word_boxes))
                 print("len(char_boxes_list) = ", len(char_boxes_list))
+                save_batch_images("-1", images, word_boxes, prefix="")
                 print(e)
                 exit()
 
@@ -376,7 +371,7 @@ def train():
 
     print("Training Start ..")
     for idx in range(args.iterations):
-        batch = train_generator.get_batch(args.batch_size, idx)
+        batch = train_generator.get_batch(args.batch_size)
 
         with tf.GradientTape() as tape:
             y, feature = net(batch["image"])
@@ -400,11 +395,11 @@ def train():
                 ])
             except Exception as e:
                 print(e)
-                save_batch_images(idx, batch, prefix="error_")
+                save_batch_images(idx, batch["image"], batch["word_box"], prefix="error_")
                 loss, l_region, l_affinity, hard_bg_mask = loss_function([batch["region"], batch["affinity"], region, affinity, batch["confidence"], batch["fg_mask"], batch["bg_mask"]])
                 exit()
             if idx % 10 == 0:
-                save_batch_images(idx, batch)
+                save_batch_images(idx, batch["image"], batch["word_box"])
                 save_log(region, l_region, batch["region"], batch["fg_mask"], hard_bg_mask, "region", prefix="iter%d" % (idx+1))
                 save_log(affinity, l_affinity, batch["affinity"], batch["fg_mask"], hard_bg_mask, "affinity", prefix="iter%d" % (idx+1))
         gradients = tape.gradient(loss, net.trainable_variables)
@@ -415,15 +410,15 @@ def train():
         manager.save()
 
 
-def save_batch_images(idx, batch, prefix=""):
-    for batch_idx in range(len(batch["image"])):
-        img = batch["image"][batch_idx]
+def save_batch_images(idx, images, word_boxes, prefix=""):
+    for batch_idx in range(len(images)):
+        img = images[batch_idx]
         iter_idx = "iter%d" % (idx + 1)
         display = (img - np.min(img)) / (np.max(img) - np.min(img)) * 255
         display = cv2.resize(display, ((np.shape(display)[0] // 2), (np.shape(display)[1] // 2)))
 
         points_list = list()
-        for word_box in batch["word_box"][batch_idx]:
+        for word_box in word_boxes[batch_idx]:
             points = np.asarray(word_box, dtype=np.int)
             points = np.reshape(points, (-1, 2))
             points_list.append(points)
