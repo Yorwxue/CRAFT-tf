@@ -85,7 +85,7 @@ class DataGenerator(object):
                 img, word_boxes, char_boxes_list, region_box_list, affinity_box_list, img_shape = load_sample(img_path, self.img_size, word_boxes, char_boxes_list, crop_ratio=(ini_min_ratio*crop_ratio, ini_max_ratio*crop_ratio))
 
                 # skip break example
-                while len(char_boxes_list) != len(word_boxes):
+                while len(char_boxes_list) == 0 or len(word_boxes) == 0:
                     print(img_path)
                     print(word_boxes)
                     print(char_boxes_list)
@@ -400,23 +400,11 @@ def train():
                 ])
             except Exception as e:
                 print(e)
+                save_batch_images(idx, batch, prefix="error_")
                 loss, l_region, l_affinity, hard_bg_mask = loss_function([batch["region"], batch["affinity"], region, affinity, batch["confidence"], batch["fg_mask"], batch["bg_mask"]])
                 exit()
             if idx % 10 == 0:
-                for batch_idx in range(len(batch["image"])):
-                    img = batch["image"][batch_idx]
-                    prefix = "iter%d" % (idx+1)
-                    display = (img - np.min(img)) / (np.max(img)-np.min(img)) * 255
-                    display = cv2.resize(display, ((np.shape(display)[0]//2), (np.shape(display)[1]//2)))
-
-                    points_list = list()
-                    for word_box in batch["word_box"][batch_idx]:
-                        points = np.asarray(word_box, dtype=np.int)
-                        points = np.reshape(points, (-1, 2))
-                        points_list.append(points)
-                    cv2.polylines(display, points_list, True, (0, 255, 255))
-
-                    cv2.imwrite("./logs/%s_%d_img.jpg" % (prefix, batch_idx), display)
+                save_batch_images(idx, batch)
                 save_log(region, l_region, batch["region"], batch["fg_mask"], hard_bg_mask, "region", prefix="iter%d" % (idx+1))
                 save_log(affinity, l_affinity, batch["affinity"], batch["fg_mask"], hard_bg_mask, "affinity", prefix="iter%d" % (idx+1))
         gradients = tape.gradient(loss, net.trainable_variables)
@@ -425,6 +413,22 @@ def train():
         # if (idx+1) % 100 == 0:
         #     checkpoint.save(checkpoint_prefix)
         manager.save()
+
+
+def save_batch_images(idx, batch, prefix=""):
+    for batch_idx in range(len(batch["image"])):
+        img = batch["image"][batch_idx]
+        iter_idx = "iter%d" % (idx + 1)
+        display = (img - np.min(img)) / (np.max(img) - np.min(img)) * 255
+        display = cv2.resize(display, ((np.shape(display)[0] // 2), (np.shape(display)[1] // 2)))
+
+        points_list = list()
+        for word_box in batch["word_box"][batch_idx]:
+            points = np.asarray(word_box, dtype=np.int)
+            points = np.reshape(points, (-1, 2))
+            points_list.append(points)
+        cv2.polylines(display, points_list, True, (0, 255, 255))
+        cv2.imwrite("./logs/%s%s_%d_img.jpg" % (prefix, iter_idx, batch_idx), display)
 
 
 if __name__ == '__main__':

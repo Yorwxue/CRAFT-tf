@@ -15,35 +15,39 @@ def random_crop(img, word_boxes, char_boxes_list, crop_ratio=(0.1, 0.3)):
              (3) character-level boxes of cropped image
 
     """
+    # decide the ratio of size of cropped image over size of raw image
     if crop_ratio[0] == crop_ratio[1]:
         random_ratio = crop_ratio[0]
     else:
         random_ratio = np.random.uniform(crop_ratio[0], crop_ratio[1])
+
+    # random choose a box as center of cropped image
     random_chose = np.random.randint(0, len(word_boxes))
-    if word_boxes[random_chose][0][0] == word_boxes[random_chose][1][0]:
-        random_center_x = word_boxes[random_chose][0][0]
-    else:
-        random_center_x = np.random.randint(word_boxes[random_chose][0][0], word_boxes[random_chose][1][0])
-    if word_boxes[random_chose][0][1] == word_boxes[random_chose][3][1]:
-        random_center_y = word_boxes[random_chose][0][1]
-    else:
-        random_center_y = np.random.randint(word_boxes[random_chose][0][1], word_boxes[random_chose][3][1])
+
+    # bias base on box size
+    random_center_x = np.random.randint(
+        np.min([word_boxes[random_chose][0][0], word_boxes[random_chose][3][0]]),
+        np.max([word_boxes[random_chose][1][0], word_boxes[random_chose][2][0]]))
+    random_center_y = np.random.randint(
+        np.min([word_boxes[random_chose][0][1], word_boxes[random_chose][1][1]]),
+        np.max([word_boxes[random_chose][2][1], word_boxes[random_chose][3][1]]))
 
     high, width = np.shape(img)[0:2]
     target_high = int(random_ratio * high)
     target_width = int(random_ratio * width)
 
+    # bias for move box far from center
     random_center_x = random_center_x + np.random.randint(-target_width//4, target_width//4)
     random_center_y = random_center_y + np.random.randint(-target_high//4, target_high//4)
 
     # move center to avoid out of boundary
-    if (random_center_x - int(target_width/2)) <= 0:
+    if (random_center_x - target_width//2) < 0:
         random_center_x = random_center_x + target_width//2
-    elif (random_center_x + int(target_width/2)) >= width:
+    elif (random_center_x + target_width//2) >= width:
         random_center_x = random_center_x - target_width//2
-    if (random_center_y - int(target_high/2)) <= 0:
+    if (random_center_y - target_high//2) < 0:
         random_center_y = random_center_x + target_high//2
-    elif (random_center_y + int(target_high/2)) >= width:
+    elif (random_center_y + target_high//2) >= width:
         random_center_y = random_center_x - target_high//2
 
     # compute boundary
