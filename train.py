@@ -17,18 +17,18 @@ from utils.box_util import reorder_points
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--alpha', type=float, default=1., help="ratio of loss of foreground and background")
+parser.add_argument('--alpha', type=float, default=1., help="weight of loss of foreground")
 parser.add_argument('--learning_rate', type=float, default=0.0001)  # https://github.com/clovaai/CRAFT-pytorch/issues/18
 parser.add_argument('--batch_size', type=int, default=32)  # batch size for training
 parser.add_argument('--canvas_size', type=int, default=768)
-parser.add_argument('--max_epochs', type=int, default=800)  # maximum number of epochs
+# parser.add_argument('--max_epochs', type=int, default=800)  # maximum number of epochs
 parser.add_argument('--gpu_list', type=str, default='0')  # list of gpus to use
 parser.add_argument('--use_fake', type=bool, default=False)
 # path to training data
 parser.add_argument('--real_data_path', type=str, default=r"./dataset/ctw/")
-parser.add_argument('--max_image_size', type=int, default=1280)
+# parser.add_argument('--max_image_size', type=int, default=1280)
 parser.add_argument('--iterations', '--iter', type=int, default=100000)
-parser.add_argument('--weight_dir', type=str, default=r"./weights/", help="directory of model weights")
+parser.add_argument('--weight_dir', type=str, default=r"./weights/", help="directory to save model weights")
 
 args = parser.parse_args()
 
