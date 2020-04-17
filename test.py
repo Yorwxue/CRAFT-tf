@@ -17,7 +17,7 @@ parser.add_argument('--text_threshold', default=0.7, type=float, help='text conf
 parser.add_argument('--low_text', default=0.4, type=float, help='text low-bound score')
 parser.add_argument('--link_threshold', default=0.4, type=float, help='link confidence threshold')
 parser.add_argument('--poly', default=False, action='store_true', help='enable polygon type')
-parser.add_argument('--canvas_size', default=1280, type=int, help='image size for inference')
+parser.add_argument('--canvas_size', default=768, type=int, help='image size for inference')
 parser.add_argument('--mag_ratio', default=1.5, type=float, help='image magnification ratio')
 # parser.add_argument('--refine', default=False, action='store_true', help='enable link refiner')
 # parser.add_argument('--refiner_model', default="PATH/TO/YOUR/REFINER/MODEL", type=str, help='pretrained refiner model')

@@ -32,9 +32,11 @@ def batch_ohem(loss, fg_mask, bg_mask, negative_ratio=3.):
     return tf.map_fn(lambda x: ohem(x[0], x[1], x[2], negative_ratio), elems=[loss, fg_mask, bg_mask], dtype=tf.float32)
 
 
-def save_log(preds, losses, gts, fg_masks, bg_masks, type, prefix):
+def save_log(preds, losses, gts, fg_masks, bg_masks, type, prefix, max_keep=2):
     idx = 0
     for pred, loss, gt, fg_mask, bg_mask in zip(preds, losses, gts, fg_masks, bg_masks):
+        if idx >= max_keep:
+            break
         pred = np.asarray(pred)
         loss = np.asarray(loss)
         gt = np.asarray(gt)
@@ -63,7 +65,7 @@ class craft_mse_loss(tf.keras.Model):
         self.confidence_threshold = 0.5
 
     def call(self, args):
-        region_true, affinity_true, region_pred, affinity_pred, confidence, fg_mask, bg_mask = args
+        region_true, affinity_true, region_pred, affinity_pred, confidence, fg_mask, bg_mask, alpha = args
         """
         temp = np.asarray(region_true)[0]
         img_temp = np.transpose([temp, temp, temp], (1, 2, 0)) * 255
@@ -80,7 +82,7 @@ class craft_mse_loss(tf.keras.Model):
 
         l_total = l_region + l_affinity
         hard_bg_mask = batch_ohem(l_total, fg_mask, bg_mask)
-        train_mask = hard_bg_mask + fg_mask
+        train_mask = hard_bg_mask + tf.constant(alpha, dtype=tf.float32) * fg_mask
         l_total = l_total * train_mask
 
         # show loss map

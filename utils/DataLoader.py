@@ -6,10 +6,6 @@ import json
 # from utils.img_util import load_image, drawPoly
 
 
-def SynLoader(dataset_path):
-    pass
-
-
 class TTLoader(object):
     def __init__(self, dataset_path):
         self.data_dict = {"Train": list(), "Test": list()}
@@ -164,6 +160,13 @@ class CTWLoader(object):
         return self.train_set, self.test_set
 
 
+class SynLoader(object):
+    def __init__(self, dataset_path):
+        self.root_path = dataset_path
+        self.test_set = list()
+        self.train_set = list()
+
+
 if __name__ == "__main__":
     # Total Text Dataset
     """
@@ -198,5 +201,12 @@ if __name__ == "__main__":
     """
 
     # A Large Chinese Text Dataset in the Wild
+    """
     CTWdataset = CTWLoader("../dataset/ctw/")
+    # """
+
+    # synthetic dataset
+    from scipy import io
+    dataset_path = "/home/clliao/workspace/CRAFT-tf/dataset/synthetic/Syndata.pth"
+    gt = io.loadmat(os.path.join(dataset_path, 'gt.mat'))
     print()

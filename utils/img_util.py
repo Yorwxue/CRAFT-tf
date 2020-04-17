@@ -152,10 +152,11 @@ def load_sample(img_path, img_size, raw_word_boxes, raw_char_boxes_list, crop_ra
 
     # redo sample data while this data is broken
     while len(char_boxes_list) == 0 or len(word_boxes) == 0:
-        print("img: " + img_path + " can't find boxes")
+        print("cropped img: " + img_path + " can't find boxes")
         min_crop_ratio = np.min([min_crop_ratio+0.1, 1])
         max_crop_ratio = np.min([max_crop_ratio+0.1, 1])
-        img, word_boxes, char_boxes_list = random_crop(raw_img, word_boxes, char_boxes_list, (min_crop_ratio, max_crop_ratio))
+        img, word_boxes, char_boxes_list = random_crop(raw_img, raw_word_boxes, raw_char_boxes_list, (min_crop_ratio, max_crop_ratio))
+        print("re-crop a new image")
 
 
     height, width = img.shape[:2]

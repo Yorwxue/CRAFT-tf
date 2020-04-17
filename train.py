@@ -17,9 +17,10 @@ from utils.box_util import reorder_points
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--learning_rate', type=float, default=0.0001)  # initial learning rate
-parser.add_argument('--batch_size', type=int, default=10)  # batch size for training
-parser.add_argument('--canvas_size', type=int, default=640)
+parser.add_argument('--alpha', type=float, default=1., help="ratio of loss of foreground and background")
+parser.add_argument('--learning_rate', type=float, default=0.0001)  # https://github.com/clovaai/CRAFT-pytorch/issues/18
+parser.add_argument('--batch_size', type=int, default=32)  # batch size for training
+parser.add_argument('--canvas_size', type=int, default=768)
 parser.add_argument('--max_epochs', type=int, default=800)  # maximum number of epochs
 parser.add_argument('--gpu_list', type=str, default='0')  # list of gpus to use
 parser.add_argument('--use_fake', type=bool, default=False)
@@ -343,7 +344,9 @@ def train():
     # declare model
     net = CRAFT(input_shape=(args.canvas_size, args.canvas_size, 3))
     loss_function = craft_loss()
-    optimizer = tf.keras.optimizers.Adam(lr=args.learning_rate)
+    # lr decay depend on https://github.com/clovaai/CRAFT-pytorch/issues/18
+    lr_fn = tf.optimizers.schedules.ExponentialDecay(args.learning_rate, decay_steps=10000, decay_rate=0.8)
+    optimizer = tf.keras.optimizers.Adam(lr_fn)
     checkpoint = tf.train.Checkpoint(optimizer=optimizer, model=net)
     manager = tf.train.CheckpointManager(
         checkpoint, directory=args.weight_dir, max_to_keep=10)
@@ -391,14 +394,15 @@ def train():
                     affinity,
                     batch["confidence"],
                     batch["fg_mask"],
-                    batch["bg_mask"]
+                    batch["bg_mask"],
+                    args.alpha
                 ])
             except Exception as e:
                 print(e)
                 save_batch_images(idx, batch["image"], batch["word_box"], prefix="error_")
-                loss, l_region, l_affinity, hard_bg_mask = loss_function([batch["region"], batch["affinity"], region, affinity, batch["confidence"], batch["fg_mask"], batch["bg_mask"]])
+                loss, l_region, l_affinity, hard_bg_mask = loss_function([batch["region"], batch["affinity"], region, affinity, batch["confidence"], batch["fg_mask"], batch["bg_mask"], args.alpha])
                 exit()
-            if idx % 10 == 0:
+            if idx % 50 == 0:
                 save_batch_images(idx, batch["image"], batch["word_box"])
                 save_log(region, l_region, batch["region"], batch["fg_mask"], hard_bg_mask, "region", prefix="iter%d" % (idx+1))
                 save_log(affinity, l_affinity, batch["affinity"], batch["fg_mask"], hard_bg_mask, "affinity", prefix="iter%d" % (idx+1))
@@ -410,8 +414,8 @@ def train():
         manager.save()
 
 
-def save_batch_images(idx, images, word_boxes, prefix=""):
-    for batch_idx in range(len(images)):
+def save_batch_images(idx, images, word_boxes, prefix="", max_keep=2):
+    for batch_idx in range(np.min([len(images), max_keep])):
         img = images[batch_idx]
         iter_idx = "iter%d" % (idx + 1)
         display = (img - np.min(img)) / (np.max(img) - np.min(img)) * 255
