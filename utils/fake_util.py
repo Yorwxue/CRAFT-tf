@@ -2,6 +2,9 @@ import cv2
 import math
 import numpy as np
 
+from utils.box_util import reorder_points
+from utils.img_util import img_normalize
+
 
 def watershed(src, threshold=0.7):
     """
@@ -176,14 +179,48 @@ def cal_confidence(boxes, word_length):
     return confidence
 
 
-if __name__ == '__main__':
-    region_score = cv2.imread(r'D:\python\CRAFT_keras\170.png', 0)
-    markers = watershed(region_score)
-    region_boxes = find_box(markers)
-    result_img = cv2.cvtColor(region_score, cv2.COLOR_GRAY2BGR)
-    for region_box in region_boxes:
-        cv2.polylines(result_img, [region_box], True, color=(0, 0, 255))
+def fake_char_boxes(net, src, word_box, word_length):
+    img, src_points, crop_points = crop_image(src, word_box, dst_height=64.)
+    h, w = img.shape[:2]
+    if min(h, w) == 0:
+        confidence = 0.5
+        region_boxes = divide_region(word_box, word_length)
+        region_boxes = [reorder_points(region_box) for region_box in region_boxes]
+        return region_boxes, confidence
+    img = img_normalize(img)
+    # print(img.shape)
+    region_score, _ = net.predict(np.array([img]))
+    heat_map = region_score[0] * 255.
+    heat_map = heat_map.astype(np.uint8)
+    marker_map = watershed(heat_map)
+    region_boxes = find_box(marker_map)
+    confidence = cal_confidence(region_boxes, word_length)
+    if confidence <= 0.5:
+        confidence = 0.5
+        region_boxes = divide_region(word_box, word_length)
+        region_boxes = [reorder_points(region_box) for region_box in region_boxes]
+    else:
+        region_boxes = np.array(region_boxes) * 2
+        region_boxes = enlarge_char_boxes(region_boxes, crop_points)
+        region_boxes = [un_warping(region_box, src_points, crop_points) for region_box in region_boxes]
+        # print(word_box, region_boxes)
 
-    cv2.imshow('result', result_img)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    return region_boxes, confidence
+
+
+if __name__ == '__main__':
+    pass
+    # # watershed
+    # region_score = (cv2.imread("../iter2051_1_region_img_pred.jpg"))[:,:,0]
+    # markers = watershed(region_score, threshold=0.1)
+    # region_boxes = find_box(markers)
+    # result_img = cv2.cvtColor(region_score, cv2.COLOR_GRAY2BGR)
+    # for region_box in region_boxes:
+    #     cv2.polylines(result_img, [region_box], True, color=(0, 0, 255))
+    # cv2.imwrite('../example_watershed.jpg', result_img)
+
+    # crop_image
+    src = cv2.imread("../iter2051_1_img.jpg")
+    word_box = [[90, 5], [180, 5], [180, 40], [90, 40]]
+    img, src_points, crop_points = crop_image(src, word_box, dst_height=64.)
+    # cv2.imwrite("../test.jpg", img)

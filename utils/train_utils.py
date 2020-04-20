@@ -70,6 +70,16 @@ def random_crop(img, word_boxes, char_boxes_list, crop_ratio=(0.1, 0.3)):
 
 
 def boxes_checker(boxes, new_img_shape, old_img_center):
+    """
+    check coordinates of boxes is still in the cropped image
+    Args:
+        boxes: points of boxes
+        new_img_shape: shape of crop image
+        old_img_center: coordinates of center of cropped image in original image
+
+    Returns: points of boxes
+
+    """
     high, width = new_img_shape
     bias_x, bias_y = old_img_center
     target_boxes = list()

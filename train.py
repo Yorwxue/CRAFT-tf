@@ -14,6 +14,7 @@ from utils.loss import craft_mse_loss as craft_loss
 # from utils.loss import craft_huber_loss as craft_loss
 from utils.DataLoader import SynLoader, TTLoader, CTWLoader
 from utils.box_util import reorder_points
+from utils.fake_util import fake_char_boxes
 
 
 parser = argparse.ArgumentParser()
@@ -34,7 +35,7 @@ args = parser.parse_args()
 
 
 class DataGenerator(object):
-    def __init__(self, train_data_dict, sample_ratio, img_size, batch_size):
+    def __init__(self, net, train_data_dict, sample_ratio, img_size, batch_size):
         """
 
         Args:
@@ -48,6 +49,7 @@ class DataGenerator(object):
         """
         super().__init__()
         assert len(train_data_dict.keys()) == len(sample_ratio)
+        self.net = net
         self.train_data_dict = train_data_dict
         self.train_data_keys = list(self.train_data_dict.keys())
         self.sample_ratio = np.array(sample_ratio) / np.sum(sample_ratio)
@@ -78,7 +80,18 @@ class DataGenerator(object):
             # sample_mark: sample from real or fake dataset: 0 means real, 1 means fake
             sample_mark = np.random.choice(self.data_mark_list, p=self.sample_ratio)
 
-            img_path, word_boxes, words, char_boxes_list, confidence_list = self.train_data_dict[self.train_data_keys[sample_mark]][self.data_idx_list[sample_mark]]
+            if sample_mark:  # fake
+                # TODO: in process
+                img_path, word_boxes, words, _, _ = self.train_data_dict[self.train_data_keys[sample_mark]][self.data_idx_list[sample_mark]]
+                char_boxes_list, confidence_list = list(), list()
+                for word_box, word in zip(word_boxes, words):
+                    word_length = len(word)
+                    char_boxes, confidence = fake_char_boxes(self.net, img_path, word_box, word_length)
+                    char_boxes_list.append(char_boxes)
+                    confidence_list.append(confidence)
+            else:  # real
+                img_path, word_boxes, words, char_boxes_list, confidence_list = self.train_data_dict[self.train_data_keys[sample_mark]][self.data_idx_list[sample_mark]]
+
             self.data_idx_list[sample_mark] += 1
             if self.data_idx_list[sample_mark] >= self.data_count_list[sample_mark]:
                 self.data_idx_list[sample_mark] = 0
@@ -197,156 +210,16 @@ class DataGenerator(object):
 
         return inputs
 
-    # def fake_char_boxes(self, src, word_box, word_length):
-    #     img, src_points, crop_points = crop_image(src, word_box, dst_height=64.)
-    #     h, w = img.shape[:2]
-    #     if min(h, w) == 0:
-    #         confidence = 0.5
-    #         region_boxes = divide_region(word_box, word_length)
-    #         region_boxes = [reorder_points(region_box) for region_box in region_boxes]
-    #         return region_boxes, confidence
-    #     img = img_normalize(img)
-    #     # print(img.shape)
-    #     region_score, _ = self.base_model.predict(np.array([img]))
-    #     heat_map = region_score[0] * 255.
-    #     heat_map = heat_map.astype(np.uint8)
-    #     marker_map = watershed(heat_map)
-    #     region_boxes = find_box(marker_map)
-    #     confidence = cal_confidence(region_boxes, word_length)
-    #     if confidence <= 0.5:
-    #         confidence = 0.5
-    #         region_boxes = divide_region(word_box, word_length)
-    #         region_boxes = [reorder_points(region_box) for region_box in region_boxes]
-    #     else:
-    #         region_boxes = np.array(region_boxes) * 2
-    #         region_boxes = enlarge_char_boxes(region_boxes, crop_points)
-    #         region_boxes = [un_warping(region_box, src_points, crop_points) for region_box in region_boxes]
-    #         # print(word_box, region_boxes)
-    #
-    #     return region_boxes, confidence
-    #
-    # def init_sample(self, flag=False):
-    #     for sample_mark in self.sample_mark_list:
-    #         if self.fakes[sample_mark]:
-    #             sample_list = self.train_sample_lists[sample_mark]
-    #             new_sample_list = list()
-    #
-    #             for sample in sample_list:
-    #                 if len(sample) == 5:
-    #                     img_path, word_boxes, words, _, _ = sample
-    #                 else:
-    #                     img_path, word_boxes, words, _ = sample
-    #                 img = load_image(img_path)
-    #                 char_boxes_list = list()
-    #
-    #                 confidence_list = list()
-    #                 for word_box, word in zip(word_boxes, words):
-    #                     char_boxes, confidence = self.fake_char_boxes(img, word_box, len(word))
-    #                     char_boxes_list.append(char_boxes)
-    #                     confidence_list.append(confidence)
-    #                 new_sample_list.append([img_path, word_boxes, words, char_boxes_list, confidence_list])
-    #
-    #             self.train_sample_lists[sample_mark] = new_sample_list
-    #         elif flag:
-    #             sample_list = self.train_sample_lists[sample_mark]
-    #             new_sample_list = list()
-    #
-    #             for sample in sample_list:
-    #                 if len(sample) == 5:
-    #                     img_path, word_boxes, words, char_boxes_list, _ = sample
-    #                 else:
-    #                     img_path, word_boxes, words, char_boxes_list = sample
-    #                 confidence_list = [1] * len(word_boxes)
-    #                 new_sample_list.append([img_path, word_boxes, words, char_boxes_list, confidence_list])
-    #
-    #             self.train_sample_lists[sample_mark] = new_sample_list
-    #
-    # def on_epoch_end(self, epoch, logs=None):
-    #     self.init_sample()
-    #
-    # def on_train_begin(self, logs=None):
-    #     self.init_sample(True)
-    #
-    # def next_train(self):
-    #     while 1:
-    #         ret = self.get_batch(self.batch_size)
-    #         yield ret
-    #
-    # def next_val(self):
-    #     while 1:
-    #         ret = self.get_batch(self.batch_size, False)
-    #         yield ret
-
-
-# def make_image_summary(tensor):
-#     """
-#     Convert an numpy representation image to Image protobuf.
-#     Copied from https://github.com/lanpa/tensorboard-pytorch/
-#     """
-#     if len(tensor.shape) == 2:
-#         height, width = tensor.shape
-#         channel = 1
-#     else:
-#         height, width, channel = tensor.shape
-#         if channel == 1:
-#             tensor = tensor[:, :, 0]
-#     image = Image.fromarray(tensor)
-#     output = io.BytesIO()
-#     image.save(output, format='PNG')
-#     image_string = output.getvalue()
-#     output.close()
-#     return tf.Summary.Image(height=height,
-#                             width=width,
-#                             colorspace=channel,
-#                             encoded_image_string=image_string)
-
-
-# class CraftTensorBoard(TensorBoard):
-#     def __init__(self, log_dir, write_graph, test_model, callback_model, data_generator):
-#         self.test_model = test_model
-#         self.callback_model = callback_model
-#         self.data_generator = data_generator
-#         super(CraftTensorBoard, self).__init__(log_dir=log_dir, write_graph=write_graph)
-#
-#     def on_epoch_end(self, epoch, logs=None):
-#         logs.update({'learning_rate': K.eval(self.model.optimizer.lr)})
-#         # self.data_generator.init_sample()
-#         data = next(self.data_generator.next_val())
-#         images = data[0]['image']
-#         word_boxes = data[0]['word_box']
-#         word_lengths = data[0]['word_length']
-#         target_region = data[0]['region']
-#         target_affinity = data[0]['affinity']
-#         confidence_scores = data[0]['confidence']
-#         region, affinity, region_gt, affinity_gt = self.callback_model.predict([images, word_boxes, word_lengths,
-#                                                                                 target_region, target_affinity,
-#                                                                                 confidence_scores])
-#         img_summaries = []
-#         for i in range(3):
-#             input_image_summary = make_image_summary(img_unnormalize(images[i]))
-#             pred_region_summary = make_image_summary((region[i] * 255).astype('uint8'))
-#             pred_affinity_summary = make_image_summary((affinity[i] * 255).astype('uint8'))
-#             gt_region_summary = make_image_summary((region_gt[i] * 255).astype('uint8'))
-#             gt_affinity_summary = make_image_summary((affinity_gt[i] * 255).astype('uint8'))
-#             img_summaries.append(tf.Summary.Value(tag='input_image/%d' % i, image=input_image_summary))
-#             img_summaries.append(tf.Summary.Value(tag='region_pred/%d' % i, image=pred_region_summary))
-#             img_summaries.append(tf.Summary.Value(tag='affinity_pred/%d' % i, image=pred_affinity_summary))
-#             img_summaries.append(tf.Summary.Value(tag='region_gt/%d' % i, image=gt_region_summary))
-#             img_summaries.append(tf.Summary.Value(tag='affinity_gt/%d' % i, image=gt_affinity_summary))
-#         tf_summary = tf.Summary(value=img_summaries)
-#         self.writer.add_summary(tf_summary, epoch + 1)
-#         super(CraftTensorBoard, self).on_epoch_end(epoch + 1, logs)
-#
-#         self.test_model.save_weights(r'weights/weight.h5'.format(epoch))
-
 
 def train():
     # declare model
     net = CRAFT(input_shape=(args.canvas_size, args.canvas_size, 3))
     loss_function = craft_loss()
+
     # lr decay depend on https://github.com/clovaai/CRAFT-pytorch/issues/18
     lr_fn = tf.optimizers.schedules.ExponentialDecay(args.learning_rate, decay_steps=10000, decay_rate=0.8)
     optimizer = tf.keras.optimizers.Adam(lr_fn)
+
     checkpoint = tf.train.Checkpoint(optimizer=optimizer, model=net)
     manager = tf.train.CheckpointManager(
         checkpoint, directory=args.weight_dir, max_to_keep=10)
@@ -366,10 +239,10 @@ def train():
     if args.use_fake:
         train_fake_data_list = []  # TODO
         np.random.shuffle(train_fake_data_list)
-        train_generator = DataGenerator({"real": train_real_data_list, "fake": train_fake_data_list},
+        train_generator = DataGenerator(net, {"real": train_real_data_list, "fake": train_fake_data_list},
                                         [5, 1], args.canvas_size, args.batch_size)
     else:
-        train_generator = DataGenerator({"real": train_real_data_list},
+        train_generator = DataGenerator(net, {"real": train_real_data_list},
                                         [1], args.canvas_size, args.batch_size)
 
     print("Training Start ..")

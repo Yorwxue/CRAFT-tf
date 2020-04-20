@@ -66,7 +66,7 @@ def test_net(net, image, text_threshold, link_threshold, low_text, poly, refine_
 
     # render results (optional)
     render_img = score_text.numpy()
-    render_img = np.hstack((render_img, score_link))
+    render_img = np.hstack((render_img, np.ones((np.shape(render_img)[0], 5)), score_link))
     ret_score_text = score_to_heat_map(render_img)
 
     # if args.show_time : print("\ninfer/postproc time : {:.3f}/{:.3f}".format(t0, t1))
@@ -113,6 +113,6 @@ if __name__ == "__main__":
         mask_file = result_folder + "/%s_res_" % prefix_filename + filename + '_mask.jpg'
         cv2.imwrite(mask_file, score_text)
 
-        saveResult(image_path, image[:, :, ::-1], polys, dirname=result_folder, prefix=prefix_filename)
+        saveResult(image_path, image, polys, dirname=result_folder, prefix=prefix_filename)
 
     # print("elapsed time : {}s".format(time.time() - t))
