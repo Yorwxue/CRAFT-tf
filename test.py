@@ -13,8 +13,8 @@ from utils.craft_utils import getDetBoxes,  adjustResultCoordinates
 
 parser = argparse.ArgumentParser(description='CRAFT Text Detection')
 parser.add_argument('--test_folder', default='./images/', type=str, help='folder path to input images')
-parser.add_argument('--text_threshold', default=0.7, type=float, help='text confidence threshold')
-parser.add_argument('--low_text', default=0.4, type=float, help='text low-bound score')
+parser.add_argument('--text_threshold', default=0.4, type=float, help='text confidence threshold')  # 0.7
+parser.add_argument('--low_text', default=0.2, type=float, help='text low-bound score')  # 0.4
 parser.add_argument('--link_threshold', default=0.4, type=float, help='link confidence threshold')
 parser.add_argument('--poly', default=False, action='store_true', help='enable polygon type')
 parser.add_argument('--canvas_size', default=768, type=int, help='image size for inference')

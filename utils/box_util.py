@@ -130,8 +130,7 @@ def cal_quadrangle_area(points):
 def cal_intersection(points):
     """
     Calculate the intersection of diagonals.
-    x=[(x3-x1)(x4-x2)(y2-y1)+x1(y3-y1)(x4-x2)-x2(y4-y2)(x3-x1)]/[(y3-y1)(x4-x2)-(y4-y2)(x3-x1)]
-    y=(y3-y1)[(x4-x2)(y2-y1)+(x1-x2)(y4-y2)]/[(y3-y1)(x4-x2)-(y4-y2)(x3-x1)]+y1
+    https://en.wikipedia.org/wiki/Line%E2%80%93line_intersection
     :param points: (x1, y1), (x2, y2), (x3, y3), (x4, y4).
     :return: (x, y).
     """
